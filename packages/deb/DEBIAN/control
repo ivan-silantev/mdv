@@ -1,0 +1,8 @@
+Package: mdv
+Version: 0.1.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Ivan
+Description: Markdown renderer CLI in the terminal
+ A fast and beautiful markdown renderer for your terminal.

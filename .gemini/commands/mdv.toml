@@ -1,0 +1,10 @@
+description = "Render a Markdown file with the local mdv terminal renderer."
+
+prompt = """
+Render the requested Markdown file with mdv and return the rendered terminal output exactly as shown.
+Do not summarize, rewrite, or add commentary around the rendered output.
+
+```text
+!{./zig-out/bin/mdv {{args}}}
+```
+"""

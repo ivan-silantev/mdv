@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "spectre": {
+      "command": "cargo",
+      "args": ["run", "--", "mcp"],
+      "env": {},
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

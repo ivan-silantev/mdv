@@ -1,0 +1,21 @@
+# Zig
+zig-cache/
+zig-out/
+build/
+dist/
+.zig-cache/
+.zig-global-cache/
+target/*
+.gemini/settings.json
+.spectre/cache.json
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db

@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/nfpm.schema.json
+name: "mdv"
+arch: "amd64"
+platform: "linux"
+version: "0.1.0"
+section: "utils"
+priority: "optional"
+maintainer: "Ivan"
+description: "Markdown renderer CLI in the terminal"
+vendor: "Ivan"
+homepage: "https://github.com/Ivan/md"
+license: "MIT"
+contents:
+  - src: ../../zig-out/bin/mdv
+    dst: /usr/bin/mdv
