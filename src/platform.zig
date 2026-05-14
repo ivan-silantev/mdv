@@ -1,15 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const renderer = @import("mdv_renderer");
+const posix = std.posix;
 const windows = std.os.windows;
-
-const c = if (builtin.os.tag == .windows)
-    struct {}
-else
-    @cImport({
-        @cInclude("sys/ioctl.h");
-        @cInclude("unistd.h");
-    });
 
 pub fn getTerminalSize() renderer.Size {
     const fallback = renderer.Size{ .cols = 80, .rows = 24 };
@@ -31,12 +24,17 @@ pub fn getTerminalSize() renderer.Size {
         };
     }
 
-    var ws = std.mem.zeroes(c.struct_winsize);
-    const rc = c.ioctl(c.STDOUT_FILENO, c.TIOCGWINSZ, &ws);
-    if (rc != 0 or ws.ws_col == 0 or ws.ws_row == 0) return fallback;
+    var ws: posix.winsize = .{
+        .row = 0,
+        .col = 0,
+        .xpixel = 0,
+        .ypixel = 0,
+    };
+    const rc = posix.system.ioctl(posix.STDOUT_FILENO, posix.T.IOCGWINSZ, @intFromPtr(&ws));
+    if (posix.errno(rc) != .SUCCESS or ws.col == 0 or ws.row == 0) return fallback;
 
     return .{
-        .cols = ws.ws_col,
-        .rows = ws.ws_row,
+        .cols = ws.col,
+        .rows = ws.row,
     };
 }
