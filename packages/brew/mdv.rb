@@ -4,10 +4,10 @@ class Mdv < Formula
   url "https://github.com/ivan-silantev/mdv.git", tag: "v0.1.0"
   license "MIT"
 
-  depends_on "zig" => :build
+  depends_on "zig@0.15" => :build
 
   def install
-    system "zig", "build", "-Doptimize=ReleaseSafe", "--prefix", prefix
+    system Formula["zig@0.15"].opt_bin/"zig", "build", "-Doptimize=ReleaseSafe", "--prefix", prefix
   end
 
   test do
