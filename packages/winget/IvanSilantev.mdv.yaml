@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.6.0.schema.json
 PackageIdentifier: IvanSilantev.mdv
-PackageVersion: 0.1.0
+PackageVersion: 0.1.1
 PackageName: mdv
 Publisher: Ivan Silantev
 PackageUrl: https://github.com/ivan-silantev/mdv
@@ -19,8 +19,8 @@ ReleaseDate: 2026-05-14
 Installers:
   - Architecture: x64
     InstallerType: zip
-    InstallerUrl: https://github.com/ivan-silantev/mdv/releases/download/v0.1.0/mdv-windows-x86_64.zip
-    InstallerSha256: AD680EA929B11545BA595DF44B000B58671B1478997A90D2ADFDBE23B0255277
+    InstallerUrl: https://github.com/ivan-silantev/mdv/releases/download/v0.1.1/mdv-windows-x86_64.zip
+    InstallerSha256: 6E6FF74172FCBA11B841F4F08FBA369B4A02BBCAF7ECF04762758AEDF858815A
     NestedInstallerType: portable
     NestedInstallerFiles:
       - RelativeFilePath: mdv.exe

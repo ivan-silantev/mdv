@@ -1,26 +1,26 @@
 class Mdv < Formula
   desc "Markdown renderer CLI in the terminal"
   homepage "https://github.com/ivan-silantev/mdv"
-  version "0.1.0"
+  version "0.1.1"
   license "MIT"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/ivan-silantev/mdv/releases/download/v#{version}/mdv-macos-aarch64.tar.gz"
-      sha256 "8e266b3c8e5d30c9b9c6c01390b95bd4aa3b3241f337cd9fb5cae70600ee7c5b"
+      url "https://github.com/ivan-silantev/mdv/releases/download/v0.1.1/mdv-macos-aarch64.tar.gz"
+      sha256 "9f506d36f022ff6227f39f782d37f64b89fe489eed47b71c056233d4131120ee"
     else
-      url "https://github.com/ivan-silantev/mdv/releases/download/v#{version}/mdv-macos-x86_64.tar.gz"
-      sha256 "eedda6c229fe7765db51b270ba2f839dee97f7423e724651f8bdbd985f6de424"
+      url "https://github.com/ivan-silantev/mdv/releases/download/v0.1.1/mdv-macos-x86_64.tar.gz"
+      sha256 "06be246b8b6911976070e25cb32b749acf54dd38f05d588be6643f1f63a01170"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/ivan-silantev/mdv/releases/download/v#{version}/mdv-linux-aarch64.tar.gz"
-      sha256 "3fd28b79eea164e2d00f7aaece45e9331482657a35632496b2a74a5fbb7db119"
+      url "https://github.com/ivan-silantev/mdv/releases/download/v0.1.1/mdv-linux-aarch64.tar.gz"
+      sha256 "2c7ecc9f8355101f84cbb4d3a407d575a0e7e089f40715c37fe4b4a01921a3ce"
     else
-      url "https://github.com/ivan-silantev/mdv/releases/download/v#{version}/mdv-linux-x86_64.tar.gz"
-      sha256 "c7bed1de554dff9135097fc062fa6627a7f799a8839735ce426a5722929b9d26"
+      url "https://github.com/ivan-silantev/mdv/releases/download/v0.1.1/mdv-linux-x86_64.tar.gz"
+      sha256 "cc0e1110b02839ecdc62a905d1337707a0cb85e11070a661698db5289d9ebe89"
     end
   end
 
