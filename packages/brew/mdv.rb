@@ -1,7 +1,7 @@
 class Mdv < Formula
   desc "Markdown renderer CLI in the terminal"
-  homepage "https://github.com/Ivan/md"
-  url "https://github.com/Ivan/md.git", tag: "v0.1.0"
+  homepage "https://github.com/ivan-silantev/mdv"
+  url "https://github.com/ivan-silantev/mdv.git", tag: "v0.1.0"
   license "MIT"
 
   depends_on "zig" => :build

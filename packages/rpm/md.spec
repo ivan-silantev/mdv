@@ -4,8 +4,8 @@ Release:        1%{?dist}
 Summary:        Markdown renderer CLI in the terminal
 
 License:        MIT
-URL:            https://github.com/Ivan/md
-Source0:        https://github.com/Ivan/md/archive/refs/tags/v%{version}.tar.gz
+URL:            https://github.com/ivan-silantev/mdv
+Source0:        https://github.com/ivan-silantev/mdv/archive/refs/tags/v%{version}.tar.gz
 
 BuildRequires:  zig
 

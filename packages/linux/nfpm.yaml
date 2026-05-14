@@ -8,7 +8,7 @@ priority: "optional"
 maintainer: "Ivan"
 description: "Markdown renderer CLI in the terminal"
 vendor: "Ivan"
-homepage: "https://github.com/Ivan/md"
+homepage: "https://github.com/ivan-silantev/mdv"
 license: "MIT"
 contents:
   - src: ../../zig-out/bin/mdv

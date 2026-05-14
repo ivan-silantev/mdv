@@ -21,7 +21,7 @@ cp zig-out/bin/mdv.exe dist/mdv-windows-x86_64/mdv.exe
 shasum -a 256 dist/mdv-windows-x86_64.zip
 ```
 
-Upload `dist/mdv-windows-x86_64.zip` to the GitHub release `v0.1.0`. If you rebuild the ZIP, update `InstallerSha256` in `packages/winget/Ivan.mdv.yaml` with the new checksum.
+Upload `dist/mdv-windows-x86_64.zip` to the GitHub release `v0.1.0`. If you rebuild the ZIP, update `InstallerSha256` in `packages/winget/IvanSilantev.mdv.yaml` with the new checksum.
 
 ## 3. Confirm the Homebrew tag URL
 
@@ -36,7 +36,7 @@ brew install --build-from-source ./packages/brew/mdv.rb
 ```sh
 brew audit --strict --online packages/brew/mdv.rb
 brew install --build-from-source ./packages/brew/mdv.rb
-winget validate packages/winget/Ivan.mdv.yaml
+winget validate packages/winget/IvanSilantev.mdv.yaml
 ```
 
 The WinGet manifest uses `InstallerType: zip` with `NestedInstallerType: portable` because the release asset is a ZIP archive containing `mdv.exe`.
@@ -44,4 +44,4 @@ The WinGet manifest uses `InstallerType: zip` with `NestedInstallerType: portabl
 ## 5. Submit
 
 - Homebrew: copy `packages/brew/mdv.rb` into your tap, for example `homebrew-tap/Formula/mdv.rb`, and open a PR.
-- WinGet: submit `packages/winget/Ivan.mdv.yaml` to `microsoft/winget-pkgs` under `manifests/i/Ivan/mdv/0.1.0/`.
+- WinGet: submit `packages/winget/IvanSilantev.mdv.yaml` to `microsoft/winget-pkgs` under `manifests/i/IvanSilantev/mdv/0.1.0/`.

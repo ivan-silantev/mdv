@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.6.0.schema.json
-PackageIdentifier: Ivan.mdv
+PackageIdentifier: IvanSilantev.mdv
 PackageVersion: 0.1.0
 PackageName: mdv
-Publisher: Ivan
-PackageUrl: https://github.com/Ivan/md
+Publisher: Ivan Silantev
+PackageUrl: https://github.com/ivan-silantev/mdv
 License: MIT
 ShortDescription: Markdown renderer CLI in the terminal
 Description: mdv renders Markdown files in the terminal and can export normalized HTML with --html.
@@ -15,12 +15,12 @@ Tags:
   - renderer
 Commands:
   - mdv
-ReleaseDate: 2026-05-05
+ReleaseDate: 2026-05-14
 Installers:
   - Architecture: x64
     InstallerType: zip
-    InstallerUrl: https://github.com/Ivan/md/releases/download/v0.1.0/mdv-windows-x86_64.zip
-    InstallerSha256: 7ABB866C1E7C564AA0208A4129FB635CA4DD2372ABF28CB0AED1CED91F46114F
+    InstallerUrl: https://github.com/ivan-silantev/mdv/releases/download/v0.1.0/mdv-windows-x86_64.zip
+    InstallerSha256: AD680EA929B11545BA595DF44B000B58671B1478997A90D2ADFDBE23B0255277
     NestedInstallerType: portable
     NestedInstallerFiles:
       - RelativeFilePath: mdv.exe

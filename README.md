@@ -82,7 +82,7 @@ tools/commonmark_fixture_runner.py --mode html --skip-build --section "Links"
 Package recipes live under `packages/`:
 
 - `packages/brew/mdv.rb` for Homebrew taps.
-- `packages/winget/Ivan.mdv.yaml` for WinGet.
+- `packages/winget/IvanSilantev.mdv.yaml` for WinGet.
 - `packages/linux/nfpm.yaml` for nfpm-generated Linux packages.
 - `packages/deb/DEBIAN/control` and `packages/rpm/md.spec` for direct Debian/RPM metadata.
 
