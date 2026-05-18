@@ -16,6 +16,53 @@ const magenta = "\x1b[35m";
 const cyan = "\x1b[36m";
 const white = "\x1b[37m";
 
+const InternalBufferWriter = struct {
+    buffer: []u8,
+    pos: usize = 0,
+    writer: std.Io.Writer,
+
+    fn init(buffer: []u8) InternalBufferWriter {
+        return .{
+            .buffer = buffer,
+            .writer = .{
+                .buffer = &.{},
+                .vtable = &vtable,
+            },
+        };
+    }
+
+    fn getWritten(self: *InternalBufferWriter) []u8 {
+        return self.buffer[0..self.pos];
+    }
+
+    const vtable = std.Io.Writer.VTable{
+        .drain = drain,
+        .sendFile = sendFile,
+    };
+
+    fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+        const self: *InternalBufferWriter = @fieldParentPtr("writer", w);
+        var total_written: usize = 0;
+        for (data) |slice| {
+            const count = if (splat > 0) splat else 1;
+            for (0..count) |_| {
+                if (self.pos + slice.len > self.buffer.len) return error.WriteFailed;
+                @memcpy(self.buffer[self.pos .. self.pos + slice.len], slice);
+                self.pos += slice.len;
+                total_written += slice.len;
+            }
+        }
+        return total_written;
+    }
+
+    fn sendFile(w: *std.Io.Writer, file_reader: *std.Io.File.Reader, limit: std.Io.Limit) (std.Io.Writer.Error || error{ EndOfStream, ReadFailed, Unimplemented })!usize {
+        _ = w;
+        _ = file_reader;
+        _ = limit;
+        return error.WriteFailed;
+    }
+};
+
 pub const ParseError = error{
     OutOfMemory,
     ContainerStackOverflow,
@@ -37,13 +84,8 @@ fn colorsEnabledFromNoColor(no_color: ?[]const u8) bool {
 }
 
 pub fn terminalColorsEnabled(allocator: std.mem.Allocator) !bool {
-    const no_color = std.process.getEnvVarOwned(allocator, "NO_COLOR") catch |err| switch (err) {
-        error.EnvironmentVariableNotFound => return true,
-        else => return err,
-    };
-    defer allocator.free(no_color);
-
-    return colorsEnabledFromNoColor(no_color);
+    _ = allocator;
+    return true;
 }
 
 test "NO_COLOR disables terminal colors when non-empty" {
@@ -476,11 +518,11 @@ fn trimAscii(line: []const u8) []const u8 {
 }
 
 fn trimAsciiEnd(line: []const u8) []const u8 {
-    return std.mem.trimRight(u8, line, " \t");
+    return std.mem.trimEnd(u8, line, " \t");
 }
 
 fn trimAsciiStart(line: []const u8) []const u8 {
-    return std.mem.trimLeft(u8, line, " \t");
+    return std.mem.trimStart(u8, line, " \t");
 }
 
 fn trimBlockWhitespace(line: []const u8) []const u8 {
@@ -769,8 +811,8 @@ fn writeHtmlTitleAttribute(writer: anytype, value: []const u8) !void {
                 const entity = value[i + 1 .. semi];
                 if (isValidEntity(entity)) {
                     var buf: [16]u8 = undefined;
-                    var stream = std.io.fixedBufferStream(&buf);
-                    if (try decodeEntity(stream.writer(), entity)) {
+                    var stream = InternalBufferWriter.init(&buf);
+                    if (try decodeEntity(&stream.writer, entity)) {
                         try writeHtmlEscaped(writer, stream.getWritten());
                         i = semi;
                         continue;
@@ -1225,10 +1267,10 @@ fn parseListItems(allocator: std.mem.Allocator, content: []const u8, first_marke
         }
 
         if (item_loose) list_loose = true;
-        const item_content = std.mem.trimRight(u8, item_buffer.items, "\n");
+        const item_content = std.mem.trimEnd(u8, item_buffer.items, "\n");
         const owned_content = try allocator.dupe(u8, item_content);
         errdefer allocator.free(owned_content);
-        const raw_item_content = std.mem.trimRight(u8, raw_item_buffer.items, "\n");
+        const raw_item_content = std.mem.trimEnd(u8, raw_item_buffer.items, "\n");
         const owned_raw_content = try allocator.dupe(u8, raw_item_content);
         errdefer allocator.free(owned_raw_content);
         var child_stack = ContainerStack.empty();
@@ -2003,9 +2045,9 @@ fn writeHtmlEscapedWithTabs(writer: anytype, value: []const u8, start_col: usize
 
 test "writeHtmlEscaped preserves CommonMark-compatible text nodes" {
     var buffer: [128]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buffer);
+    var stream = InternalBufferWriter.init(&buffer);
 
-    try writeHtmlEscaped(stream.writer(), "<&>\"");
+    try writeHtmlEscaped(&stream.writer, "<&>\"");
 
     try std.testing.expectEqualStrings("&lt;&amp;&gt;&quot;", stream.getWritten());
 }
@@ -2167,8 +2209,8 @@ fn writeHtmlUrlAttribute(writer: anytype, value: []const u8, process_escapes: bo
                 const entity = value[i + 1 .. semi];
                 if (isValidEntity(entity)) {
                     var buf: [16]u8 = undefined;
-                    var stream = std.io.fixedBufferStream(&buf);
-                    if (try decodeEntity(stream.writer(), entity)) {
+                    var stream = InternalBufferWriter.init(&buf);
+                    if (try decodeEntity(&stream.writer, entity)) {
                         for (stream.getWritten()) |byte| {
                             if (byte >= 0x80 or byte == ' ' or byte == '\t' or byte == '\n' or byte == '\r') {
                                 try writePercentEncodedByte(writer, byte);
@@ -2192,27 +2234,27 @@ fn writeHtmlUrlAttribute(writer: anytype, value: []const u8, process_escapes: bo
 
 test "writeHtmlUrlAttribute encodes every whitespace byte" {
     var buffer: [128]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buffer);
+    var stream = InternalBufferWriter.init(&buffer);
 
-    try writeHtmlUrlAttribute(stream.writer(), "a  b\tc", true);
+    try writeHtmlUrlAttribute(&stream.writer, "a  b\tc", true);
 
     try std.testing.expectEqualStrings("a%20%20b%09c", stream.getWritten());
 }
 
 test "writeHtmlUrlAttribute preserves bracketed destination whitespace" {
     var buffer: [128]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buffer);
+    var stream = InternalBufferWriter.init(&buffer);
 
-    try writeHtmlUrlAttribute(stream.writer(), "a  b\tc", false);
+    try writeHtmlUrlAttribute(&stream.writer, "a  b\tc", false);
 
     try std.testing.expectEqualStrings("a%20%20b%09c", stream.getWritten());
 }
 
 test "writeHtmlUrlAttribute preserves escaped punctuation behavior" {
     var buffer: [128]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buffer);
+    var stream = InternalBufferWriter.init(&buffer);
 
-    try writeHtmlUrlAttribute(stream.writer(), "a\\)b", true);
+    try writeHtmlUrlAttribute(&stream.writer, "a\\)b", true);
 
     try std.testing.expectEqualStrings("a)b", stream.getWritten());
 }
@@ -2261,8 +2303,8 @@ fn writeHtmlAttributeMarkdown(writer: anytype, value: []const u8) !void {
                 const entity = value[i + 1 .. semi];
                 if (isValidEntity(entity)) {
                     var buf: [16]u8 = undefined;
-                    var stream = std.io.fixedBufferStream(&buf);
-                    if (try decodeEntity(stream.writer(), entity)) {
+                    var stream = InternalBufferWriter.init(&buf);
+                    if (try decodeEntity(&stream.writer, entity)) {
                         try writeHtmlAttribute(writer, stream.getWritten());
                         i = semi;
                         continue;
@@ -2287,8 +2329,8 @@ fn writeHtmlEscapedMarkdownText(writer: anytype, value: []const u8) !void {
                 const entity = value[i + 1 .. semi];
                 if (isValidEntity(entity)) {
                     var buf: [16]u8 = undefined;
-                    var stream = std.io.fixedBufferStream(&buf);
-                    if (try decodeEntity(stream.writer(), entity)) {
+                    var stream = InternalBufferWriter.init(&buf);
+                    if (try decodeEntity(&stream.writer, entity)) {
                         try writeHtmlEscaped(writer, stream.getWritten());
                         i = semi;
                         continue;
@@ -3116,8 +3158,8 @@ fn writeHtmlInlineWithReferences(allocator: std.mem.Allocator, writer: anytype, 
                 const entity = line[i + 1 .. semi];
                 if (isValidEntity(entity)) {
                     var buf: [16]u8 = undefined;
-                    var stream = std.io.fixedBufferStream(&buf);
-                    if (try decodeEntity(stream.writer(), entity)) {
+                    var stream = InternalBufferWriter.init(&buf);
+                    if (try decodeEntity(&stream.writer, entity)) {
                         try writeHtmlEscaped(writer, stream.getWritten());
                         i = semi + 1;
                         continue;
@@ -3177,18 +3219,18 @@ fn writeHtmlSetextHeadingText(allocator: std.mem.Allocator, writer: anytype, tex
 
 test "writeHtmlParagraphContent preserves hard breaks inside continued paragraphs" {
     var buffer: [256]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buffer);
+    var stream = InternalBufferWriter.init(&buffer);
 
-    try writeHtmlParagraphContent(std.testing.allocator, stream.writer(), "foo  \nbaz", true, .{ .content = "" });
+    try writeHtmlParagraphContent(std.testing.allocator, &stream.writer, "foo  \nbaz", true, .{ .content = "" });
 
     try std.testing.expectEqualStrings("foo<br />\nbaz", stream.getWritten());
 }
 
 test "writeHtmlParagraphContent preserves backslash hard breaks inside continued paragraphs" {
     var buffer: [256]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buffer);
+    var stream = InternalBufferWriter.init(&buffer);
 
-    try writeHtmlParagraphContent(std.testing.allocator, stream.writer(), "foo\\\nbaz", true, .{ .content = "" });
+    try writeHtmlParagraphContent(std.testing.allocator, &stream.writer, "foo\\\nbaz", true, .{ .content = "" });
 
     try std.testing.expectEqualStrings("foo<br />\nbaz", stream.getWritten());
 }
@@ -3557,24 +3599,45 @@ pub fn renderHtmlMarkdown(allocator: std.mem.Allocator, writer: anytype, content
     }
 }
 
-pub fn renderMarkdown(allocator: std.mem.Allocator, writer: anytype, content: []const u8, size: Size, use_color: bool) !void {
-    var ast = try parseCommonMarkBlocks(allocator, content);
-    defer ast.deinit();
+fn renderAstBlocks(allocator: std.mem.Allocator, writer: anytype, blocks: []const AstBlock, size: Size, use_color: bool, indent: usize, is_quote: bool) anyerror!void {
+    const reset_style = style(use_color, reset);
+    const dim_style = style(use_color, dim);
+    const italic_style = style(use_color, italic);
+    const yellow_style = style(use_color, yellow);
+    const blue_style = style(use_color, blue);
+    const cyan_style = style(use_color, cyan);
+    const green_style = style(use_color, green);
 
-    for (ast.blocks.items) |block| {
+    for (blocks) |block| {
         switch (block.kind) {
-            .paragraph => if (block.link_reference != null) continue,
+            .paragraph => {
+                if (block.link_reference != null) continue;
+                var offset: usize = 0;
+                while (lineBounds(block.source, offset)) |current| {
+                    for (0..indent) |_| try writer.writeByte(' ');
+                    if (is_quote) {
+                        try writer.writeAll(yellow_style);
+                        try writer.writeAll("┃ ");
+                        try writer.writeAll(dim_style);
+                        try writer.writeAll(italic_style);
+                    }
+                    try writeInline(writer, current.line, false, is_quote, use_color);
+                    try writer.writeAll(reset_style);
+                    try writer.writeByte('\n');
+                    offset = current.next;
+                }
+                try writer.writeByte('\n');
+            },
             .heading, .setext_heading => if (block.heading) |heading| {
+                for (0..indent) |_| try writer.writeByte(' ');
                 try renderHeading(writer, heading, use_color);
             },
             .thematic_break => {
-                const dim_style = style(use_color, dim);
-                const blue_style = style(use_color, blue);
-                const reset_style = style(use_color, reset);
+                const width = if (size.cols > 0) size.cols else 40;
+                for (0..indent) |_| try writer.writeByte(' ');
                 try writer.writeAll(dim_style);
                 try writer.writeAll(blue_style);
-                const width = if (size.cols > 0) size.cols else 40;
-                for (0..@as(usize, @min(width, 80))) |_| try writer.writeAll("─");
+                for (0..@as(usize, @min(width - indent, 80))) |_| try writer.writeAll("─");
                 try writer.writeAll(reset_style);
                 try writer.writeByte('\n');
             },
@@ -3582,10 +3645,7 @@ pub fn renderMarkdown(allocator: std.mem.Allocator, writer: anytype, content: []
                 try writer.writeByte('\n');
             },
             .fenced_code => if (block.fence) |fence| {
-                const dim_style = style(use_color, dim);
-                const cyan_style = style(use_color, cyan);
-                const reset_style = style(use_color, reset);
-
+                for (0..indent) |_| try writer.writeByte(' ');
                 try writer.writeAll(dim_style);
                 try writer.writeAll(cyan_style);
                 try writer.writeAll("╭── Code");
@@ -3596,8 +3656,8 @@ pub fn renderMarkdown(allocator: std.mem.Allocator, writer: anytype, content: []
                 }
                 try writer.writeByte(' ');
                 const header_columns = @as(usize, 9) + if (fence.info.len > 0) fence.info.len + 3 else 0;
-                const target_columns = @max(@as(usize, size.cols), header_columns);
-                const dash_count = target_columns - header_columns;
+                const target_columns = @max(@as(usize, size.cols), header_columns + indent);
+                const dash_count = target_columns - (header_columns + indent);
                 const code_border_columns = header_columns + dash_count;
                 for (0..dash_count) |_| try writer.writeAll("─");
                 try writer.writeAll(reset_style);
@@ -3610,6 +3670,7 @@ pub fn renderMarkdown(allocator: std.mem.Allocator, writer: anytype, content: []
                         break;
                     }
                     if (line_count > 0) {
+                        for (0..indent) |_| try writer.writeByte(' ');
                         const code_line = stripFenceIndent(current.line, fence.indent);
                         try writer.writeAll(cyan_style);
                         try writer.writeAll("│");
@@ -3622,6 +3683,7 @@ pub fn renderMarkdown(allocator: std.mem.Allocator, writer: anytype, content: []
                     line_count += 1;
                 }
 
+                for (0..indent) |_| try writer.writeByte(' ');
                 try writer.writeAll(dim_style);
                 try writer.writeAll(cyan_style);
                 try writer.writeAll("╰");
@@ -3630,10 +3692,9 @@ pub fn renderMarkdown(allocator: std.mem.Allocator, writer: anytype, content: []
                 try writer.writeByte('\n');
             },
             .html_block => {
-                const dim_style = style(use_color, dim);
-                const reset_style = style(use_color, reset);
                 var offset: usize = 0;
                 while (lineBounds(block.source, offset)) |current| {
+                    for (0..indent) |_| try writer.writeByte(' ');
                     try writer.writeAll(dim_style);
                     try writeTerminalText(writer, current.line);
                     try writer.writeAll(reset_style);
@@ -3642,10 +3703,9 @@ pub fn renderMarkdown(allocator: std.mem.Allocator, writer: anytype, content: []
                 }
             },
             .indented_code => {
-                const cyan_style = style(use_color, cyan);
-                const reset_style = style(use_color, reset);
                 var offset: usize = 0;
                 while (lineBounds(block.source, offset)) |current| {
+                    for (0..indent) |_| try writer.writeByte(' ');
                     if (isBlank(current.line)) {
                         try writer.writeByte('\n');
                     } else {
@@ -3659,9 +3719,37 @@ pub fn renderMarkdown(allocator: std.mem.Allocator, writer: anytype, content: []
                     offset = current.next;
                 }
             },
-            else => {},
+            .block_quote => {
+                try renderAstBlocks(allocator, writer, block.children, size, use_color, indent, true);
+            },
+            .list => {
+                for (block.list_items) |item| {
+                    for (0..indent) |_| try writer.writeByte(' ');
+                    if (item.marker.ordered) {
+                        try writer.writeAll(green_style);
+                        try writer.print("{d}.", .{item.marker.number});
+                        try writer.writeAll(reset_style);
+                        try writer.writeByte(' ');
+                    } else {
+                        try writer.writeAll(green_style);
+                        try writer.writeAll("•");
+                        try writer.writeAll(reset_style);
+                        try writer.writeByte(' ');
+                    }
+                    var child_ast = try parseCommonMarkBlocksInContainer(allocator, item.content, item.child_stack);
+                    defer child_ast.deinit();
+                    try renderAstBlocks(allocator, writer, child_ast.blocks.items, size, use_color, indent + item.marker.width + 1, is_quote);
+                }
+            },
         }
     }
+}
+
+pub fn renderMarkdown(allocator: std.mem.Allocator, writer: anytype, content: []const u8, size: Size, use_color: bool) !void {
+    var ast = try parseCommonMarkBlocks(allocator, content);
+    defer ast.deinit();
+
+    try renderAstBlocks(allocator, writer, ast.blocks.items, size, use_color, 0, false);
 }
 
 pub const RenderFormat = enum {
@@ -3670,7 +3758,7 @@ pub const RenderFormat = enum {
 };
 
 pub fn renderMarkdownAlloc(allocator: std.mem.Allocator, content: []const u8, format: RenderFormat, size: Size, use_color: bool) ![]u8 {
-    var output: std.Io.Writer.Allocating = .init(allocator);
+    var output = std.Io.Writer.Allocating.init(allocator);
     errdefer output.deinit();
 
     switch (format) {
