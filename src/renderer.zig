@@ -158,6 +158,7 @@ const BlockKind = enum {
     html_block,
     block_quote,
     list,
+    table,
     paragraph,
 };
 
@@ -1047,6 +1048,99 @@ fn appendAstBlock(ast: *CommonMarkAst, block: AstBlock) !void {
     try ast.blocks.append(ast.allocator, block);
 }
 
+fn displayWidth(value: []const u8) usize {
+    var width: usize = 0;
+    var idx: usize = 0;
+    while (idx < value.len) {
+        const byte = value[idx];
+        if (byte == '\t') {
+            width += 4 - (width % 4);
+            idx += 1;
+        } else if (byte < 0x80) {
+            width += 1;
+            idx += 1;
+        } else {
+            const len = std.unicode.utf8ByteSequenceLength(byte) catch 1;
+            idx += if (idx + len <= value.len) len else 1;
+            width += 1;
+        }
+    }
+    return width;
+}
+
+fn appendTableCells(allocator: std.mem.Allocator, cells: *std.ArrayList([]const u8), line: []const u8) !void {
+    var trimmed = trimAscii(line);
+    if (trimmed.len > 0 and trimmed[0] == '|') trimmed = trimmed[1..];
+    if (trimmed.len > 0 and trimmed[trimmed.len - 1] == '|') trimmed = trimmed[0 .. trimmed.len - 1];
+
+    var start: usize = 0;
+    var idx: usize = 0;
+    while (idx <= trimmed.len) : (idx += 1) {
+        if (idx == trimmed.len or trimmed[idx] == '|') {
+            const end = idx;
+            if (end > start and trimmed[end - 1] == '\\' and idx < trimmed.len) continue;
+            try cells.append(allocator, trimAscii(trimmed[start..end]));
+            start = idx + 1;
+        }
+    }
+}
+
+fn parseTableCells(allocator: std.mem.Allocator, line: []const u8) ![]const []const u8 {
+    var cells = std.ArrayList([]const u8).empty;
+    errdefer cells.deinit(allocator);
+    try appendTableCells(allocator, &cells, line);
+    return try cells.toOwnedSlice(allocator);
+}
+
+fn isTableDelimiterCell(cell: []const u8) bool {
+    const trimmed = trimAscii(cell);
+    if (trimmed.len == 0) return false;
+    var idx: usize = 0;
+    if (trimmed[idx] == ':') idx += 1;
+    var hyphens: usize = 0;
+    while (idx < trimmed.len and trimmed[idx] == '-') : (idx += 1) hyphens += 1;
+    if (hyphens < 3) return false;
+    if (idx < trimmed.len and trimmed[idx] == ':') idx += 1;
+    return idx == trimmed.len;
+}
+
+fn isTableDelimiterLine(allocator: std.mem.Allocator, line: []const u8, expected_columns: usize) !bool {
+    if (std.mem.indexOfScalar(u8, line, '|') == null) return false;
+    const cells = try parseTableCells(allocator, line);
+    defer allocator.free(cells);
+    if (cells.len == 0 or cells.len != expected_columns) return false;
+    for (cells) |cell| {
+        if (!isTableDelimiterCell(cell)) return false;
+    }
+    return true;
+}
+
+fn isTableStart(allocator: std.mem.Allocator, header_line: []const u8, content: []const u8, offset: usize, stack: ContainerStack) !bool {
+    if (leadingColumns(header_line) >= 4 or std.mem.indexOfScalar(u8, header_line, '|') == null) return false;
+    const header_cells = try parseTableCells(allocator, header_line);
+    defer allocator.free(header_cells);
+    if (header_cells.len == 0) return false;
+    const next_line = lineBounds(content, offset) orelse return false;
+    const delimiter_line = stack.normalizeLine(next_line.line).content;
+    return try isTableDelimiterLine(allocator, delimiter_line, header_cells.len);
+}
+
+fn collectTableBlock(content: []const u8, offset: usize, stack: ContainerStack) usize {
+    var next_offset = offset;
+    var seen_delimiter = false;
+    while (lineBounds(content, next_offset)) |next_line| {
+        const parse_line = stack.normalizeLine(next_line.line).content;
+        if (!seen_delimiter) {
+            seen_delimiter = true;
+            next_offset = next_line.next;
+            continue;
+        }
+        if (isBlank(parse_line) or leadingColumns(parse_line) >= 4 or std.mem.indexOfScalar(u8, parse_line, '|') == null) break;
+        next_offset = next_line.next;
+    }
+    return next_offset;
+}
+
 fn collectFencedCodeBlock(content: []const u8, first_line: []const u8, offset: usize, fence: Fence) usize {
     return collectFencedCodeBlockInContainer(content, first_line, offset, fence, ContainerStack.empty());
 }
@@ -1386,6 +1480,9 @@ fn parseCommonMarkBlocksInContainer(allocator: std.mem.Allocator, content: []con
             try appendAstBlock(&ast, .{ .kind = .heading, .source = content[start..offset], .container_stack = stack, .heading = heading });
         } else if (parseThematicBreak(parse_line)) {
             try appendAstBlock(&ast, .{ .kind = .thematic_break, .source = content[start..offset], .container_stack = stack });
+        } else if (try isTableStart(allocator, parse_line, content, offset, stack)) {
+            offset = collectTableBlock(content, offset, stack);
+            try appendAstBlock(&ast, .{ .kind = .table, .source = content[start..offset], .container_stack = stack });
         } else if (isPotentialLinkReferenceDefinitionStart(parse_line)) {
             const definition_end = (try collectLinkReferenceDefinitionEnd(allocator, content, start, stack)) orelse null;
             if (definition_end == null) {
@@ -3564,6 +3661,40 @@ fn renderHtmlAstBlockQuote(allocator: std.mem.Allocator, writer: anytype, block:
     try writer.writeAll("</blockquote>\n");
 }
 
+fn renderHtmlTableBlock(allocator: std.mem.Allocator, writer: anytype, block: AstBlock, lookup: ReferenceLookup) !void {
+    var offset: usize = 0;
+    const header_line = lineBounds(block.source, offset) orelse return;
+    offset = header_line.next;
+    const header_cells = try parseTableCells(allocator, block.container_stack.normalizeLine(header_line.line).content);
+    defer allocator.free(header_cells);
+
+    offset = (lineBounds(block.source, offset) orelse return).next;
+
+    try writer.writeAll("<table>\n<thead>\n<tr>");
+    for (header_cells) |cell| {
+        try writer.writeAll("<th>");
+        try writeHtmlInlineWithReferences(allocator, writer, cell, lookup);
+        try writer.writeAll("</th>");
+    }
+    try writer.writeAll("</tr>\n</thead>\n<tbody>\n");
+
+    while (lineBounds(block.source, offset)) |current| {
+        offset = current.next;
+        const row_cells = try parseTableCells(allocator, block.container_stack.normalizeLine(current.line).content);
+        defer allocator.free(row_cells);
+        try writer.writeAll("<tr>");
+        for (0..header_cells.len) |idx| {
+            const cell = if (idx < row_cells.len) row_cells[idx] else "";
+            try writer.writeAll("<td>");
+            try writeHtmlInlineWithReferences(allocator, writer, cell, lookup);
+            try writer.writeAll("</td>");
+        }
+        try writer.writeAll("</tr>\n");
+    }
+
+    try writer.writeAll("</tbody>\n</table>\n");
+}
+
 fn renderHtmlAstBlock(allocator: std.mem.Allocator, writer: anytype, block: AstBlock, lookup: ReferenceLookup) anyerror!void {
     switch (block.kind) {
         .blank => {},
@@ -3585,6 +3716,7 @@ fn renderHtmlAstBlock(allocator: std.mem.Allocator, writer: anytype, block: AstB
         .html_block => try writer.writeAll(block.source),
         .block_quote => try renderHtmlAstBlockQuote(allocator, writer, block, lookup),
         .list => try renderHtmlAstListBlock(allocator, writer, block, lookup),
+        .table => try renderHtmlTableBlock(allocator, writer, block, lookup),
         .paragraph => if (block.link_reference == null) try renderHtmlParagraphBlock(allocator, writer, block, lookup),
     }
 }
@@ -3597,6 +3729,73 @@ pub fn renderHtmlMarkdown(allocator: std.mem.Allocator, writer: anytype, content
     for (ast.blocks.items) |block| {
         try renderHtmlAstBlock(allocator, writer, block, lookup);
     }
+}
+
+fn renderTerminalTableSeparator(writer: anytype, widths: []const usize, indent: usize, dim_style: []const u8, reset_style: []const u8) !void {
+    try writePadding(writer, indent);
+    try writer.writeAll(dim_style);
+    try writer.writeByte('|');
+    for (widths) |column_width| {
+        try writer.writeByte(' ');
+        for (0..column_width) |_| try writer.writeByte('-');
+        try writer.writeByte(' ');
+        try writer.writeByte('|');
+    }
+    try writer.writeAll(reset_style);
+    try writer.writeByte('\n');
+}
+
+fn renderTerminalTableRow(writer: anytype, cells: []const []const u8, widths: []const usize, indent: usize, reset_style: []const u8) !void {
+    try writePadding(writer, indent);
+    try writer.writeByte('|');
+    for (widths, 0..) |column_width, idx| {
+        const cell = if (idx < cells.len) cells[idx] else "";
+        try writer.writeByte(' ');
+        try writeTerminalText(writer, cell);
+        try writePadding(writer, column_width - @min(column_width, displayWidth(cell)));
+        try writer.writeByte(' ');
+        try writer.writeByte('|');
+    }
+    try writer.writeAll(reset_style);
+    try writer.writeByte('\n');
+}
+
+fn renderTerminalTableBlock(allocator: std.mem.Allocator, writer: anytype, block: AstBlock, indent: usize, dim_style: []const u8, reset_style: []const u8) !void {
+    var offset: usize = 0;
+    const header_line = lineBounds(block.source, offset) orelse return;
+    offset = header_line.next;
+    const header_cells = try parseTableCells(allocator, block.container_stack.normalizeLine(header_line.line).content);
+    defer allocator.free(header_cells);
+
+    offset = (lineBounds(block.source, offset) orelse return).next;
+
+    const widths = try allocator.alloc(usize, header_cells.len);
+    defer allocator.free(widths);
+    for (header_cells, 0..) |cell, idx| widths[idx] = displayWidth(cell);
+
+    var scan_offset = offset;
+    while (lineBounds(block.source, scan_offset)) |current| {
+        scan_offset = current.next;
+        const row_cells = try parseTableCells(allocator, block.container_stack.normalizeLine(current.line).content);
+        defer allocator.free(row_cells);
+        for (0..widths.len) |idx| {
+            const cell = if (idx < row_cells.len) row_cells[idx] else "";
+            widths[idx] = @max(widths[idx], displayWidth(cell));
+        }
+    }
+
+    try renderTerminalTableSeparator(writer, widths, indent, dim_style, reset_style);
+    try renderTerminalTableRow(writer, header_cells, widths, indent, reset_style);
+    try renderTerminalTableSeparator(writer, widths, indent, dim_style, reset_style);
+
+    while (lineBounds(block.source, offset)) |current| {
+        offset = current.next;
+        const row_cells = try parseTableCells(allocator, block.container_stack.normalizeLine(current.line).content);
+        defer allocator.free(row_cells);
+        try renderTerminalTableRow(writer, row_cells, widths, indent, reset_style);
+    }
+    try renderTerminalTableSeparator(writer, widths, indent, dim_style, reset_style);
+    try writer.writeByte('\n');
 }
 
 fn renderAstBlocks(allocator: std.mem.Allocator, writer: anytype, blocks: []const AstBlock, size: Size, use_color: bool, indent: usize, is_quote: bool) anyerror!void {
@@ -3741,6 +3940,7 @@ fn renderAstBlocks(allocator: std.mem.Allocator, writer: anytype, blocks: []cons
                     try renderAstBlocks(allocator, writer, child_ast.blocks.items, size, use_color, indent + item.marker.width + 1, is_quote);
                 }
             },
+            .table => try renderTerminalTableBlock(allocator, writer, block, indent, dim_style, reset_style),
         }
     }
 }
@@ -3767,6 +3967,39 @@ pub fn renderMarkdownAlloc(allocator: std.mem.Allocator, content: []const u8, fo
     }
 
     return output.toOwnedSlice();
+}
+
+test "renderMarkdown renders pipe tables as aligned terminal tables" {
+    const content =
+        \\| IqDL | JSON Schema / OpenAPI |
+        \\| --- | --- |
+        \\| Uint* | integer с minimum: 0 |
+        \\| String, *Id (не-namespaced) | string / integer (id-aliases) |
+        \\
+    ;
+
+    const rendered = try renderMarkdownAlloc(std.testing.allocator, content, .terminal, .{ .cols = 80, .rows = 24 }, false);
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "Uint*                       | integer с minimum: 0") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "String, *Id (не-namespaced) | string / integer (id-aliases)") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "\x1b[3m") == null);
+}
+
+test "renderHtmlMarkdown renders pipe tables as table elements" {
+    const content =
+        \\| IqDL | JSON Schema / OpenAPI |
+        \\| --- | --- |
+        \\| nullable: true | type: ["T","null"] |
+        \\
+    ;
+
+    const rendered = try renderMarkdownAlloc(std.testing.allocator, content, .html, .{ .cols = 80, .rows = 24 }, false);
+    defer std.testing.allocator.free(rendered);
+
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "<table>") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "<th>IqDL</th>") != null);
+    try std.testing.expect(std.mem.indexOf(u8, rendered, "<td>type: [&quot;T&quot;,&quot;null&quot;]</td>") != null);
 }
 
 const ffi_success: c_int = 0;
