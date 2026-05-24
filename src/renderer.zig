@@ -1360,7 +1360,10 @@ fn parseListItems(allocator: std.mem.Allocator, content: []const u8, first_marke
             pending_blank = false;
         }
 
-        if (item_loose) list_loose = true;
+        if (item_loose and !list_loose) {
+            list_loose = true;
+            for (items.items) |*previous_item| previous_item.loose = true;
+        }
         const item_content = std.mem.trimEnd(u8, item_buffer.items, "\n");
         const owned_content = try allocator.dupe(u8, item_content);
         errdefer allocator.free(owned_content);

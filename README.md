@@ -14,7 +14,7 @@
 
 Requirements:
 
-- Zig 0.15.x
+- Zig 0.16.x
 - Git
 
 Build and install locally:

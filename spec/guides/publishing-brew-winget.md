@@ -7,8 +7,8 @@ This project installs the `mdv` binary from `build.zig`; package metadata should
 Before submitting to package repositories, make sure the release repository contains a `LICENSE` file matching the `MIT` metadata in the package manifests.
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 ## 2. Build the Windows portable archive
@@ -21,7 +21,7 @@ cp zig-out/bin/mdv.exe dist/mdv-windows-x86_64/mdv.exe
 shasum -a 256 dist/mdv-windows-x86_64.zip
 ```
 
-Upload `dist/mdv-windows-x86_64.zip` to the GitHub release `v0.1.0`. If you rebuild the ZIP, update `InstallerSha256` in `packages/winget/IvanSilantev.mdv.yaml` with the new checksum.
+Upload `dist/mdv-windows-x86_64.zip` to the GitHub release `v0.1.2`. If you rebuild the ZIP, update `InstallerSha256` in `packages/winget/IvanSilantev.mdv.yaml` with the new checksum.
 
 ## 3. Confirm the Homebrew tag URL
 
@@ -44,4 +44,4 @@ The WinGet manifest uses `InstallerType: zip` with `NestedInstallerType: portabl
 ## 5. Submit
 
 - Homebrew: copy `packages/brew/mdv.rb` into your tap, for example `homebrew-tap/Formula/mdv.rb`, and open a PR.
-- WinGet: submit `packages/winget/IvanSilantev.mdv.yaml` to `microsoft/winget-pkgs` under `manifests/i/IvanSilantev/mdv/0.1.0/`.
+- WinGet: submit `packages/winget/IvanSilantev.mdv.yaml` to `microsoft/winget-pkgs` under `manifests/i/IvanSilantev/mdv/0.1.2/`.

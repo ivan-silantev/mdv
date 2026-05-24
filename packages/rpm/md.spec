@@ -1,5 +1,5 @@
 Name:           mdv
-Version:        0.1.0
+Version:        0.1.2
 Release:        1%{?dist}
 Summary:        Markdown renderer CLI in the terminal
 

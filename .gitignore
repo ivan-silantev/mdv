@@ -5,6 +5,7 @@ build/
 dist/
 .zig-cache/
 .zig-global-cache/
+.zig-local-cache/
 target/*
 .gemini/settings.json
 .spectre/cache.json
