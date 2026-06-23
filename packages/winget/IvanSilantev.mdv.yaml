@@ -15,12 +15,12 @@ Tags:
   - renderer
 Commands:
   - mdv
-ReleaseDate: 2026-05-24
+ReleaseDate: 2026-06-23
 Installers:
   - Architecture: x64
     InstallerType: zip
     InstallerUrl: https://github.com/ivan-silantev/mdv/releases/download/v0.1.2/mdv-windows-x86_64.zip
-    InstallerSha256: F15F7A85471CAC6BCB355DEF03EEA8B28652A38D2AD0CE9D0934F0255073C405
+    InstallerSha256: B6F43B4EFB4D195A3BC1F1936E9A2A70F0278381C4E7F4D14998A9C505CAF58C
     NestedInstallerType: portable
     NestedInstallerFiles:
       - RelativeFilePath: mdv.exe

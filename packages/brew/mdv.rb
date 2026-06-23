@@ -7,20 +7,20 @@ class Mdv < Formula
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/ivan-silantev/mdv/releases/download/v0.1.2/mdv-macos-aarch64.tar.gz"
-      sha256 "8d38bd972159a6249f97b24693eb37e7c5718e64479d32e29ea5c1a30a538ae5"
+      sha256 "a876db0d2f8a54130564dcdd47a666d272e1083f0eed98482642e048a165038e"
     else
       url "https://github.com/ivan-silantev/mdv/releases/download/v0.1.2/mdv-macos-x86_64.tar.gz"
-      sha256 "bf8e25765969c7f63d1cc71808396827be4e50745018fc76b2c1d5859422ec5e"
+      sha256 "30937237f9de0bccc0accde874d17a85b72346f3b6782f7f601616718d9e9555"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
       url "https://github.com/ivan-silantev/mdv/releases/download/v0.1.2/mdv-linux-aarch64.tar.gz"
-      sha256 "686d708bad5c425ecd0a2418fdbc026bc32dd6f180493567c87bf614ad8512f3"
+      sha256 "93608b36e48028714af8a4361ce0dd511ae47067f186b2cde20c38546d9d70e9"
     else
       url "https://github.com/ivan-silantev/mdv/releases/download/v0.1.2/mdv-linux-x86_64.tar.gz"
-      sha256 "f806bf99d4492621e9ad530d66afd17852b2bc0d193d7951c165cfe80f642775"
+      sha256 "096a2e14bdf9a1e66b777c2c412765b195493e6087712d7638370eb134112522"
     end
   end
 

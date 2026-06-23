@@ -44,6 +44,13 @@ Render Markdown as HTML:
 mdv --html README.md
 ```
 
+Render Markdown from standard input:
+
+```bash
+cat README.md | mdv
+cat README.md | mdv --html
+```
+
 Send rendered terminal output to the system printer:
 
 ```bash

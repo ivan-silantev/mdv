@@ -30,16 +30,8 @@ pub fn main(init: std.process.Init) !void {
         },
     };
 
-    var file = std.Io.Dir.cwd().openFile(init.io, options.filename, .{}) catch |err| {
-        try stdout.print("{s}Error opening file '{s}': {t}{s}\n", .{ cli.style(use_color, cli.red), options.filename, err, cli.style(use_color, cli.reset) });
-        return;
-    };
-    defer file.close(init.io);
-
-    const len = try file.length(init.io);
-    const content = try allocator.alloc(u8, @intCast(len));
+    const content = if (options.read_stdin) try readStdinAlloc(init.io, allocator) else try readFileAlloc(init.io, allocator, stdout, use_color, options.filename);
     defer allocator.free(content);
-    _ = try file.readPositionalAll(init.io, content, 0);
 
     if (options.render_html) {
         renderer.renderHtmlMarkdown(allocator, stdout, content) catch |err| {
@@ -60,4 +52,23 @@ pub fn main(init: std.process.Init) !void {
             std.process.exit(1);
         };
     }
+}
+
+fn readFileAlloc(io: std.Io, allocator: std.mem.Allocator, stdout: anytype, use_color: bool, filename: []const u8) ![]u8 {
+    var file = std.Io.Dir.cwd().openFile(io, filename, .{}) catch |err| {
+        try stdout.print("{s}Error opening file '{s}': {t}{s}\n", .{ cli.style(use_color, cli.red), filename, err, cli.style(use_color, cli.reset) });
+        std.process.exit(1);
+    };
+    defer file.close(io);
+
+    const len = try file.length(io);
+    const content = try allocator.alloc(u8, @intCast(len));
+    _ = try file.readPositionalAll(io, content, 0);
+    return content;
+}
+
+fn readStdinAlloc(io: std.Io, allocator: std.mem.Allocator) ![]u8 {
+    var stdin_buffer: [4096]u8 = undefined;
+    var stdin_reader = std.Io.File.stdin().readerStreaming(io, &stdin_buffer);
+    return stdin_reader.interface.allocRemaining(allocator, .limited(64 * 1024 * 1024));
 }

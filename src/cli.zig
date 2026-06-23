@@ -8,6 +8,7 @@ pub const red = "\x1b[31m";
 
 pub const CliOptions = struct {
     filename: []const u8,
+    read_stdin: bool,
     print_rendered: bool,
     render_html: bool,
 };
@@ -25,10 +26,11 @@ pub fn printUsage(writer: anytype, program_name: []const u8, use_color: bool) !v
     try writer.writeAll(" - A simple terminal markdown viewer\n\n");
     try writer.writeAll("  Usage: ");
     try writer.writeAll(program_name);
-    try writer.writeAll(" [--html] [-p] <file.md>\n");
+    try writer.writeAll(" [--html] [-p] <file.md|->\n");
     try writer.writeAll("  Options:\n");
     try writer.writeAll("    --html  Render markdown as HTML\n");
     try writer.writeAll("    -p      Send rendered terminal output to the system printer\n");
+    try writer.writeAll("    -       Read markdown from standard input\n");
 }
 
 pub fn parseArgs(args: []const []const u8) !CliOptions {
@@ -51,11 +53,16 @@ pub fn parseArgs(args: []const []const u8) !CliOptions {
             return error.ShowUsage;
         }
 
-        if (std.mem.startsWith(u8, arg, "-")) {
+        if (filename != null) {
             return error.InvalidArgument;
         }
 
-        if (filename != null) {
+        if (std.mem.eql(u8, arg, "-")) {
+            filename = arg;
+            continue;
+        }
+
+        if (std.mem.startsWith(u8, arg, "-")) {
             return error.InvalidArgument;
         }
 
@@ -63,7 +70,8 @@ pub fn parseArgs(args: []const []const u8) !CliOptions {
     }
 
     return .{
-        .filename = filename orelse return error.ShowUsage,
+        .filename = filename orelse "-",
+        .read_stdin = filename == null or std.mem.eql(u8, filename.?, "-"),
         .print_rendered = print_rendered,
         .render_html = render_html,
     };
